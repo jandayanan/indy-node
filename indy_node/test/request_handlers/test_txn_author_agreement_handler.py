@@ -13,15 +13,11 @@ from plenum.server.request_handlers.static_taa_helper import StaticTAAHelper
 from plenum.server.request_handlers.utils import get_nym_details, get_role, is_steward, nym_to_state_key, \
     encode_state_value
 from plenum.test.testing_utils import FakeSomething
-from state.pruning_state import PruningState
-from state.state import State
-from indy_common.test.auth.conftest import write_auth_req_validator, constraint_serializer, config_state
-from storage.kv_in_memory import KeyValueStorageInMemory
 
 
 @pytest.fixture(scope="module")
 def txn_author_agreement_handler(db_manager, write_auth_req_validator):
-    handler = TxnAuthorAgreementHandler(db_manager, FakeSomething(), write_auth_req_validator)
+    handler = TxnAuthorAgreementHandler(db_manager, write_auth_req_validator)
     return handler
 
 
@@ -32,22 +28,13 @@ def set_aml(txn_author_agreement_handler):
                                                               serializer=config_state_serializer))
 
 
-@pytest.fixture(scope="module")
-def taa_request(txn_author_agreement_handler, creator):
-    return Request(identifier=creator,
-                   signature="signature",
-                   operation={TXN_TYPE: TXN_AUTHOR_AGREEMENT,
-                              TXN_AUTHOR_AGREEMENT_TEXT: "text",
-                              TXN_AUTHOR_AGREEMENT_VERSION: "version"})
-
-
 def test_dynamic_validation_without_permission(taa_request,
                                                txn_author_agreement_handler: TxnAuthorAgreementHandler,
                                                creator,
                                                set_aml):
     add_to_idr(txn_author_agreement_handler.database_manager.idr_cache, creator, STEWARD)
     with pytest.raises(UnauthorizedClientRequest, match="Not enough TRUSTEE signatures"):
-        txn_author_agreement_handler.dynamic_validation(taa_request)
+        txn_author_agreement_handler.dynamic_validation(taa_request, 0)
 
 
 def test_dynamic_validation(taa_request,
@@ -55,5 +42,5 @@ def test_dynamic_validation(taa_request,
                             creator,
                             set_aml):
     add_to_idr(txn_author_agreement_handler.database_manager.idr_cache, creator, TRUSTEE)
-    txn_author_agreement_handler.dynamic_validation(taa_request)
+    txn_author_agreement_handler.dynamic_validation(taa_request, 0)
 

@@ -17,6 +17,8 @@
     * [AUTH_RULES](#auth_rules)
     * [TRANSACTION_AUTHOR_AGREEMENT](#transaction_author_agreement)
     * [TRANSACTION_AUTHOR_AGREEMENT_AML](#transaction_author_agreement_AML)    
+    * [TRANSACTION_AUTHOR_AGREEMENT_DISABLE](#transaction_author_agreement_disable)
+    * [SET_CONTEXT](#set_context)
 
 * [Read Requests](#read-requests)
 
@@ -30,6 +32,7 @@
     * [GET_AUTH_RULE](#get_auth_rule)
     * [GET_TRANSACTION_AUTHOR_AGREEMENT](#get_transaction_author_agreement)
     * [GET_TRANSACTION_AUTHOR_AGREEMENT_AML](#get_transaction_author_agreement_aml)
+    * [GET_CONTEXT](#get_context)
     * [GET_TXN](#get_txn)
 
 * [Action Requests](#action-requests)
@@ -56,7 +59,8 @@ Each Request (both write and read) is a JSON with a number of common metadata fi
         <request-specific fields>
     },
     
-    'identifier': <sender/author DID>,
+    'identifier': <author DID>,
+    `endorser`: <endorser DID>, 
     'reqId': <req_id unique integer>,
     'protocolVersion': 2,
     'signature': <signature_value>,
@@ -87,8 +91,10 @@ Each Request (both write and read) is a JSON with a number of common metadata fi
             - NODE_UPGRADE = "110"
             - POOL_CONFIG = "111"
             - REVOC_REG_DEF = "113"
-            - REVOC_REG_DEF = "114"
+            - REVOC_REG_ENTRY = "114"
             - AUTH_RULE = "120"
+            - AUTH_RULES = "122"
+            - SET_CONTEXT = "200"
             
         - read requests:
         
@@ -103,18 +109,28 @@ Each Request (both write and read) is a JSON with a number of common metadata fi
             - GET_REVOC_REG = "116"
             - GET_REVOC_REG_DELTA = "117"  
             - GET_AUTH_RULE = "121"      
+            - GET_CONTEXT = "300"
             
     - request-specific data
 
 - `identifier` (base58-encoded string):
- 
-     Identifier (DID) of the transaction submitter (client who sent the transaction) as base58-encoded string
+    
+     Identifier of the transaction author as base58-encoded string
      for 16 or 32 bit DID value.
-     It may differ from `dest` field for some of requests (for example NYM), where `dest` is a 
+ 
+     For read requests this is read request submitter. It can be any DID (not necessary present on the ledger as a NYM txn)
+ 
+     For write requests this is transaction author.
+     It may differ from `endorser` field who submits the transaction on behalf of `identifier`. If `endorser` is absent,
+     then the author (`identifier`) plays the role of endorser and submits request by his own.
+     It also may differ from `dest` field for some of requests (for example NYM), where `dest` is a 
      target identifier (for example, a newly created DID identifier).
      
-     *Example*: `identifier` is a DID of a Endorser creating a new DID, and `dest` is a newly created DID.
+     *Example*:
      
+     - `identifier` is a DID of a transaction author who doesn't have write permissions; `endorser` is a DID of a user with Endorser role (that is with write permissions).
+     - new NYM creation: `identifier` is a DID of an Endorser creating a new DID, and `dest` is a newly created DID.
+ 
 - `reqId` (integer): 
 
     Unique ID number of the request with transaction.
@@ -148,7 +164,8 @@ Write requests to Domain and added-by-plugins ledgers may have additional Transa
         <request-specific fields>
     },
     
-    'identifier': <sender/author DID>,
+    'identifier': <author DID>,
+    'endorser': <endorser DID>,
     'reqId': <req_id unique integer>,
     'taaAcceptance': {
         'taaDigest': <digest hex string>,
@@ -166,6 +183,11 @@ Write requests to Domain and added-by-plugins ledgers may have additional Transa
 ```
 
 Additional (optional) fields for write requests:
+
+- `endorser` (base58-encoded string, optional):
+    Identifier (DID) of an Endorser submitting a transaction on behalf of the original author (`identifier`) as base58-encoded string for 16 or 32 bit DID value.
+   If `endorser` is absent, then the author (`identifier`) plays the role of endorser and submits request by his own. 
+   If `endorser` is present then the transaction must be multi-signed by the both author (`identifier`) and Endorser (`endorser`).  
 
 - `taaAcceptance` (dict, optional):
             If transaction author agreement is set/enabled, then every transaction (write request) from Domain and plugins-added ledgers must include acceptance of the latest transaction author agreement.
@@ -198,6 +220,7 @@ of a transaction in the Ledger (see [transactions](transactions.md)).
             "metadata": {
                 "reqId": <...>,
                 "from": <...>,
+                "endorser": <...>,
                 "digest": <...>,
                 "payloadDigest": <...>,
                 "taaAcceptance": {
@@ -251,6 +274,7 @@ of a transaction in the Ledger (see [transactions](transactions.md)).
         - REVOC_REG_DEF = "113"
         - REVOC_REG_DEF = "114"
         - AUTH_RULE = "120"
+        - SET_CONTEXT = "200"
 
     - `protocolVersion` (integer; optional): 
     
@@ -267,13 +291,17 @@ of a transaction in the Ledger (see [transactions](transactions.md)).
         Metadata as came from the Request.
 
         - `from` (base58-encoded string):
-             Identifier (DID) of the transaction submitter (client who sent the transaction) as base58-encoded string
-             for 16 or 32 byte DID value.
-             It may differ from `did` field for some of transaction (for example NYM), where `did` is a 
+             Identifier (DID) of the transaction author as base58-encoded string
+             for 16 or 32 bit DID value.
+             It may differ from `endorser` field who submits the transaction on behalf of `identifier`.
+             If `endorser` is absent, then the author (`identifier`) plays the role of endorser and submits request by his own.
+             It also may differ from `dest` field for some of requests (for example NYM), where `dest` is a 
              target identifier (for example, a newly created DID identifier).
              
-             *Example*: `from` is a DID of a Endorser creating a new DID, and `did` is a newly created DID.
+             *Example*:
              
+             - `identifier` is a DID of a transaction author who doesn't have write permissions; `endorser` is a DID of a user with Endorser role (that is with write permissions).
+             - new NYM creation: `identifier` is a DID of an Endorser creating a new DID, and `dest` is a newly created DID.
         - `reqId` (integer): 
             Unique ID number of the request with transaction.
   
@@ -283,6 +311,11 @@ of a transaction in the Ledger (see [transactions](transactions.md)).
         - `payloadDigest` (SHA256 hex digest string):
             SHA256 hash hex digest of the payload fields in the initial requests, that is all fields excluding signatures and plugins-added ones
             
+        - `endorser` (base58-encoded string, optional):
+            Identifier (DID) of an Endorser submitting a transaction on behalf of the original author (`identifier`) as base58-encoded string for 16 or 32 bit DID value.
+            If `endorser` is absent, then the author (`identifier`) plays the role of endorser and submits request by his own. 
+            If `endorser` is present then the transaction must be multi-signed by the both author (`identifier`) and Endorser (`endorser`). 
+                        
         - `taaAcceptance` (dict, optional):
             If transaction author agreement is set/enabled, then every transaction (write request) from Domain and plugins-added ledgers must include acceptance of the latest transaction author agreement.
             
@@ -290,7 +323,7 @@ of a transaction in the Ledger (see [transactions](transactions.md)).
                 
                 - `mechanism` (string): a mechanism used to accept the signature; must be present in the latest list of transaction author agreement acceptane mechanisms on the ledger  
                 
-                - `time` (integer as POSIX timestamp): transaction author agreement acceptance time
+                - `time` (integer as POSIX timestamp): transaction author agreement acceptance time. The time needs to be rounded to date to prevent correlation of different transactions which is possible when acceptance time is too precise.
                   
   
 - `txnMetadata` (dict):
@@ -396,11 +429,11 @@ These common metadata values are added to result's JSON at the same level as rea
     - GET_REVOC_REG = "116"
     - GET_REVOC_REG_DELTA = "117"  
     - GET_AUTH_RULE = "121"    
+    - GET_CONTEXT = "300"
 
 - `identifier` (base58-encoded string):
  
-     as was in read Request (may differ from the `identifier` in `data` which defines 
-     transaction submitter)
+     read request submitter's DID as was in read Request (may differ from the `identifier` in `data` which defines transaction author)
      
 - `reqId` (integer): 
 
@@ -452,7 +485,8 @@ creation of new DIDs, setting and rotation of verification key, setting and chan
 - `dest` (base58-encoded string):
 
     Target DID as base58-encoded string for 16 or 32 byte DID value.
-    It differs from `identifier` metadata field, where `identifier` is the DID of the submitter.
+    It may differ from `identifier` metadata field, where `identifier` is the DID of the submitter.
+    If they are equal (in permissionless case), then transaction must be signed by the newly created `verkey`.
     
     *Example*: `identifier` is a DID of a Endorser creating a new DID, and `dest` is a newly created DID.
      
@@ -663,6 +697,7 @@ So, if the Schema needs to be evolved, a new Schema with a new version or name n
     },
 
     'identifier': 'L5AD5g65TDQr1PPHHRoiGf',
+    'endorser': 'D6HG5g65TDQr1PPHHRoiGf',
     'reqId': 1514280215504647,
     'protocolVersion': 2,
     'signature': '5ZTp9g4SP6t73rH2s8zgmtqdXyTuSMWwkLvfV1FD6ddHCpwTY5SAsp8YmLWnTgDnPXfJue3vJBWjy89bSHvyMSdS'
@@ -691,6 +726,7 @@ So, if the Schema needs to be evolved, a new Schema with a new version or name n
             "metadata": {
                 "reqId":1514280215504647,
                 "from":"L5AD5g65TDQr1PPHHRoiGf",
+                "endorser": "D6HG5g65TDQr1PPHHRoiGf",
                 "digest":"6cee82226c6e276c983f46d03e3b3d10436d90b67bf33dc67ce9901b44dbc97c",
                 "payloadDigest": "21f0f5c158ed6ad49ff855baf09a2ef9b4ed1a8015ac24bccc2e0106cd905685"
             },
@@ -758,6 +794,7 @@ a new Claim Def needs to be created by a new Issuer DID (`identifier`).
     },
     
     'identifier': 'L5AD5g65TDQr1PPHHRoiGf',
+    'endorser': 'D6HG5g65TDQr1PPHHRoiGf',
     'reqId': 1514280215504647,
     'protocolVersion': 2,
     'signature': '5ZTp9g4SP6t73rH2s8zgmtqdXyTuSMWwkLvfV1FD6ddHCpwTY5SAsp8YmLWnTgDnPXfJue3vJBWjy89bSHvyMSdS'
@@ -788,6 +825,7 @@ a new Claim Def needs to be created by a new Issuer DID (`identifier`).
             "metadata": {
                 "reqId":1514280215504647,
                 "from":"L5AD5g65TDQr1PPHHRoiGf",
+                "endorser": "D6HG5g65TDQr1PPHHRoiGf",
                 "digest":"6cee82226c6e276c983f46d03e3b3d10436d90b67bf33dc67ce9901b44dbc97c",
                 "payloadDigest": "21f0f5c158ed6ad49ff855baf09a2ef9b4ed1a8015ac24bccc2e0106cd905685"
             },
@@ -852,6 +890,7 @@ It contains public keys, maximum number of credentials the registry may contain,
     },
     
     'identifier': 'L5AD5g65TDQr1PPHHRoiGf',
+    'endorser': 'D6HG5g65TDQr1PPHHRoiGf',
     'reqId': 1514280215504647,
     'protocolVersion': 2,
     'signature': '5ZTp9g4SP6t73rH2s8zgmtqdXyTuSMWwkLvfV1FD6ddHCpwTY5SAsp8YmLWnTgDnPXfJue3vJBWjy89bSHvyMSdS'
@@ -886,6 +925,7 @@ It contains public keys, maximum number of credentials the registry may contain,
             "metadata": {
                 "reqId":1514280215504647,
                 "from":"L5AD5g65TDQr1PPHHRoiGf",
+                "endorser": "D6HG5g65TDQr1PPHHRoiGf",
                 "digest":"6cee82226c6e276c983f46d03e3b3d10436d90b67bf33dc67ce9901b44dbc97c",
                 "payloadDigest": "21f0f5c158ed6ad49ff855baf09a2ef9b4ed1a8015ac24bccc2e0106cd905685"
             },
@@ -941,6 +981,7 @@ The RevocReg entry containing the new accumulator value and issued/revoked indic
     },
     
     'identifier': 'L5AD5g65TDQr1PPHHRoiGf',
+    'endorser': 'D6HG5g65TDQr1PPHHRoiGf',
     'reqId': 1514280215504647,
     'protocolVersion': 2,
     'signature': '5ZTp9g4SP6t73rH2s8zgmtqdXyTuSMWwkLvfV1FD6ddHCpwTY5SAsp8YmLWnTgDnPXfJue3vJBWjy89bSHvyMSdS'
@@ -972,6 +1013,7 @@ The RevocReg entry containing the new accumulator value and issued/revoked indic
             "metadata": {
                 "reqId":1514280215504647,
                 "from":"L5AD5g65TDQr1PPHHRoiGf",
+                "endorser": "D6HG5g65TDQr1PPHHRoiGf",
                 "digest":"6cee82226c6e276c983f46d03e3b3d10436d90b67bf33dc67ce9901b44dbc97c",
                 "payloadDigest": "21f0f5c158ed6ad49ff855baf09a2ef9b4ed1a8015ac24bccc2e0106cd905685"
             },
@@ -1371,6 +1413,13 @@ The `constraint_id` fields is where one can define the desired auth constraint f
             Flag to check if the user must be the owner of a transaction (Example: A steward must be the owner of the node to make changes to it).
             The notion of the `owner` is different for every auth rule. Please reference to [auth_rules.md](auth_rules.md) for details.
             
+        - `off_ledger_signature` (boolean, optional, False by default):
+        
+            Whether signatures against keys not present on the ledger are accepted during verification of the required number of valid signatures.
+            An example when it can be set to `True` is creation of a new DID in a permissionless mode, that is when `identifer` is not present on the ledger and a newly created `verkey` is used for signature verification.
+            Another example is signing by cryptonyms  (where identifier is equal to verkey), but this is not supported yet. 
+            If the value of this field is False (default), and the number of required signatures is greater than zero, then the transaction author's DID (`identifier`) must be present on the ledger (corresponding NYM txn must exist).            
+            
         - `metadata` (dict; optional):
         
             Dictionary for additional parameters of the constraint. Can be used by plugins to add additional restrictions.
@@ -1555,6 +1604,13 @@ A client will receive NACK for
             Flag to check if the user must be the owner of a transaction (Example: A steward must be the owner of the node to make changes to it).
             The notion of the `owner` is different for every auth rule. Please reference to [auth_rules.md](auth_rules.md) for details.
             
+        - `off_ledger_signature` (boolean, optional, False by default):
+        
+            Whether signatures against keys not present on the ledger are accepted during verification of required number of valid signatures.
+            An example when it can be set to `True` is creation of a new DID in a permissionless mode, that is when `identifer` is not present on the ledger and a newly created `verkey` is used for signature verification.
+            Another example is signing by cryptonyms  (where identifier is equal to verkey), but this is not supported yet. 
+            If the value of this field is False (default), and the number of required signatures is greater than zero, then the transaction author's DID (`identifier`) must be present on the ledger (corresponding NYM txn must exist).
+            
         - `metadata` (dict; optional):
         
             Dictionary for additional parameters of the constraint. Can be used by plugins to add additional restrictions.
@@ -1666,13 +1722,36 @@ A client will receive NACK for
 ### TRANSACTION_AUTHOR_AGREEMENT
 
 Setting (enabling/disabling) a transaction author agreement for the pool.
+
 If transaction author agreement is set, then all write requests to Domain ledger (transactions) must include additional metadata pointing to the latest transaction author agreement's digest which is signed by the transaction author.
-
-If no transaction author agreement is set, or it's disabled, then no additional metadata is required.
-
-Transaction author agreement can be disabled by setting an agreement with an empty text.
+If no transaction author agreement is set, or there are no active transaction author agreements, then no additional metadata is required.
 
 Each transaction author agreement has a unique version.
+If TRANSACTION_AUTHOR_AGREEMENT transaction is sent for already existing version it is considered an update 
+(for example of retirement timestamp), in this case text and ratification timestamp should be either absent or equal to original values.
+
+For any given version of transaction author agreement text and ratification timestamp cannot be changed once set. Ratification timestamp cannot be in future.
+In order to update Transaction Author Agreement `TRANSACTION_AUTHOR_AGREEMENT` transaction should be sent, 
+containing new version and new text of agreement. This makes it possible to use new Transaction Author Agreement, but doesn't disable previous one automatically.
+
+Individual transaction author agreements can be disabled by setting retirement timestamp using same transaction.
+Retirement timestamp can be in future, in this case deactivation of agreement won't happen immediately, it will be automatically deactivated at required time instead.
+
+It is possible to change existing retirement timestamp of agreement by sending a `TRANSACTION_AUTHOR_AGREEMENT` transaction with a new retirement timestamp.
+This may potentially re-enable already retired Agreement.
+Re-enabling retired Agreement needs to be considered as an exceptional case used mostly for fixing disabling by mistake or with incorrect retirement timestamp specified.
+ 
+It is possible to delete retirement timestamp of agreement by sending a `TRANSACTION_AUTHOR_AGREEMENT` transaction without a retirement timestamp or retirement timestamp set to `None`.
+This will either cancel retirement (if it hasn't occurred yet), or disable retirement of already retired transaction (re-enable the Agreement).
+Re-enabling retired Agreement needs to be considered as an exceptional case used mostly for fixing disabling by mistake or with incorrect retirement timestamp specified.
+
+Latest transaction author agreement cannot be disabled using this transaction.
+ 
+It is possible to disable all currently active transaction author agreements (including latest) using separate transaction [TRANSACTION_AUTHOR_AGREEMENT_DISABLE](#transaction_author_agreement_disable).
+This will immediately set current timestamp as retirement one for all not yet retired Transaction Author Agreements.
+
+It's not possible to re-enable an Agreement right after disabling all agreements because there is no active latest Agreement at this point.
+A new Agreement needs to be sent instead.
 
 At least one [TRANSACTION_AUTHOR_AGREEMENT_AML](#transaction_author_agreement_aml) must be set on the ledger before submitting TRANSACTION_AUTHOR_AGREEMENT txn.
 
@@ -1680,18 +1759,32 @@ At least one [TRANSACTION_AUTHOR_AGREEMENT_AML](#transaction_author_agreement_am
 
     Unique version of the transaction author agreement
 
+- `text` (string; optional):
 
-- `text` (string):
+    Transaction author agreement's text. Must be specified when creating a new Agreement.
+    Should be either omitted or equal to existing value in case of updating an existing Agreement (setting `retirement_ts`) .
 
-    Transaction author agreement's text
+- `ratification_ts` (integer as POSIX timestamp; optional):
 
-*Request Example*:
+    Timestamp of Transaction Author Agreement ratification date as POSIX timestamp. May have any precision up to seconds.
+    Must be specified when creating a new Agreement.
+    Should be either omitted or equal to existing value in case of updating an existing Agreement (setting `retirement_ts`).
+
+- `retirement_ts` (integer as POSIX timestamp; optional):
+
+    Timestamp of Transaction Author Agreement retirement date as POSIX timestamp. May have any precision up to seconds.
+    Can be any timestamp either in future or in the past (the Agreement will be retired immediately in the latter case).
+    Must be omitted when creating a new (latest) Agreement.
+    Should be used for updating (deactivating) non-latest Agreement on the ledger.
+    
+*New Agreement Request Example*:
 ```
 {
     'operation': {
         'type': '4'
         'version': '1.0',
         'text': 'Please read carefully before writing anything to the ledger',
+        'ratification_ts': 1514304094738044
     },
     
     'identifier': '21BPzYYrFzbuECcBV3M1FH',
@@ -1701,7 +1794,7 @@ At least one [TRANSACTION_AUTHOR_AGREEMENT_AML](#transaction_author_agreement_am
 }
 ```
 
-*Reply Example*:
+*New Agreement Reply Example*:
 ```
 {
     'op': 'REPLY', 
@@ -1715,10 +1808,69 @@ At least one [TRANSACTION_AUTHOR_AGREEMENT_AML](#transaction_author_agreement_am
                 "ver":1,
                 'version': '1.0',
                 'text': 'Please read carefully before writing anything to the ledger',
+                'ratification_ts': 1514304094738044
             },
             
             "metadata": {
                 "reqId":1514304094738044,
+                "from":"21BPzYYrFzbuECcBV3M1FH",
+                "digest":"6cee82226c6e276c983f46d03e3b3d10436d90b67bf33dc67ce9901b44dbc97c",
+                "payloadDigest": "21f0f5c158ed6ad49ff855baf09a2ef9b4ed1a8015ac24bccc2e0106cd905685",
+            },
+        },
+        "txnMetadata": {
+            "txnTime":1513945121,
+            "seqNo": 10,  
+        },
+        "reqSignature": {
+            "type": "ED25519",
+            "values": [{
+                "from": "21BPzYYrFzbuECcBV3M1FH",
+                "value": "3YVzDtSxxnowVwAXZmxCG2fz1A38j1qLrwKmGEG653GZw7KJRBX57Stc1oxQZqqu9mCqFLa7aBzt4MKXk4MeunVj"
+            }]
+        },
+        
+        'rootHash': 'DvpkQ2aADvQawmrzvTTjF9eKQxjDkrCbQDszMRbgJ6zV',
+        'auditPath': ['6GdvJfqTekMvzwi9wuEpfqMLzuN1T91kvgRBQLUzjkt6'],
+    }
+}
+```
+
+
+*Retire Agreement Request Example*:
+```
+{
+    'operation': {
+        'type': '4'
+        'version': '1.0',
+        'retirement_ts': 1515415195838044
+    },
+    
+    'identifier': '21BPzYYrFzbuECcBV3M1FH',
+    'reqId': 1514304094738066,
+    'protocolVersion': 2,
+    'signature': '3YVzDtSxxnowVwAXZmxCG2fz1A38j1qLrwKmGEG653GZw7KJRBX57Stc1oxQZqqu9mCqFLa7aBzt4MKXk4MeunVj',
+}
+```
+
+*Retire Agreement Reply Example*:
+```
+{
+    'op': 'REPLY', 
+    'result': {
+        "ver":1,
+        "txn": {
+            "type":4,
+            "protocolVersion":2,
+            
+            "data": {
+                "ver":1,
+                'version': '1.0',
+                'retirement_ts': 1515415195838044
+            },
+            
+            "metadata": {
+                "reqId":1514304094738066,
                 "from":"21BPzYYrFzbuECcBV3M1FH",
                 "digest":"6cee82226c6e276c983f46d03e3b3d10436d90b67bf33dc67ce9901b44dbc97c",
                 "payloadDigest": "21f0f5c158ed6ad49ff855baf09a2ef9b4ed1a8015ac24bccc2e0106cd905685",
@@ -1829,6 +1981,177 @@ Each acceptance mechanisms list has a unique version.
         
         'rootHash': 'DvpkQ2aADvQawmrzvTTjF9eKQxjDkrCbQDszMRbgJ6zV',
         'auditPath': ['6GdvJfqTekMvzwi9wuEpfqMLzuN1T91kvgRBQLUzjkt6'],
+    }
+}
+```
+
+### TRANSACTION_AUTHOR_AGREEMENT_DISABLE
+Immediately retires all active Transaction Author Agreements at once by setting current timestamp as a retirement one.
+
+It's not possible to re-enable an Agreement right after disabling all agreements because there is no active latest Agreement at this point.
+A new Agreement needs to be sent instead.
+
+*Request Example*:
+```
+{
+    'operation': {
+        'type': '8'
+    },
+    'identifier': '21BPzYYrFzbuECcBV3M1FH',
+    'reqId': 1514304094738044,
+    'protocolVersion': 2,
+    'signature': '3YVzDtSxxnowVwAXZmxCG2fz1A38j1qLrwKmGEG653GZw7KJRBX57Stc1oxQZqqu9mCqFLa7aBzt4MKXk4MeunVj',
+}
+```
+
+*Reply Example*:
+```
+{
+    'op': 'REPLY',
+    'result': {
+        "ver":1,
+        "txn": {
+            "type":8,
+            "protocolVersion":2,
+            
+            "data": {},
+            
+            "metadata": {
+                "reqId":1514304094738044,
+                "from":"21BPzYYrFzbuECcBV3M1FH",
+                "digest":"6cee82226c6e276c983f46d03e3b3d10436d90b67bf33dc67ce9901b44dbc97c",
+                "payloadDigest": "21f0f5c158ed6ad49ff855baf09a2ef9b4ed1a8015ac24bccc2e0106cd905685",
+            },
+        },
+        "txnMetadata": {
+            "txnTime":1513945121,
+            "seqNo": 10,  
+        },
+        "reqSignature": {
+            "type": "ED25519",
+            "values": [{
+                "from": "21BPzYYrFzbuECcBV3M1FH",
+                "value": "3YVzDtSxxnowVwAXZmxCG2fz1A38j1qLrwKmGEG653GZw7KJRBX57Stc1oxQZqqu9mCqFLa7aBzt4MKXk4MeunVj"
+            }]
+        },
+        
+        'rootHash': 'DvpkQ2aADvQawmrzvTTjF9eKQxjDkrCbQDszMRbgJ6zV',
+        'auditPath': ['6GdvJfqTekMvzwi9wuEpfqMLzuN1T91kvgRBQLUzjkt6'],
+    }
+}
+```
+
+### SET_CONTEXT
+Adds Context.
+
+It's not possible to update existing Context.
+So, if the Context needs to be evolved, a new Context with a new version or name needs to be created.
+
+- `data` (dict):
+
+     Dictionary with Context's data:
+     
+    - `@context`: This value must be either:
+        1) a URI (it should dereference to a Context object)
+        2) a Context object (a dict)
+        3) an array of Context objects and/or Context URIs
+
+- `meta` (dict)
+
+    Dictionary with Context's metadata
+    
+    - `name`: Context's name string
+    - `version`: Context's version string
+    - `type`: 'ctx'
+
+*Request Example*:
+```
+{
+    'operation': {
+        'type': '200',
+        "data":{
+            "@context": [
+                {
+                    "@version": 1.1
+                },
+                "https://www.w3.org/ns/odrl.jsonld",
+                {
+                    "ex": "https://example.org/examples#",
+                    "schema": "http://schema.org/",
+                    "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+                }
+            ]
+        },
+        "meta": {
+            "name":"SimpleContext",
+            "version":"1.0",
+            "type": "ctx"
+        },
+    },
+    'identifier': 'L5AD5g65TDQr1PPHHRoiGf',
+    'endorser': 'D6HG5g65TDQr1PPHHRoiGf',
+    'reqId': 1514280215504647,
+    'protocolVersion': 2,
+    'signature': '5ZTp9g4SP6t73rH2s8zgmtqdXyTuSMWwkLvfV1FD6ddHCpwTY5SAsp8YmLWnTgDnPXfJue3vJBWjy89bSHvyMSdS'
+}
+```
+
+*Reply Example*:
+```
+{
+    'op': 'REPLY', 
+    'result': {
+        "ver": 1,
+        "txn": {
+            "type":"200",
+            "protocolVersion":2,
+            
+            "data": {
+                "ver":1,
+                "data":{
+                    "@context": [
+                        {
+                            "@version": 1.1
+                        },
+                        "https://www.w3.org/ns/odrl.jsonld",
+                        {
+                            "ex": "https://example.org/examples#",
+                            "schema": "http://schema.org/",
+                            "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+                        }
+                    ]
+                },
+                "meta": {
+                    "name":"SimpleContext",
+                    "version":"1.0",
+                    "type": "ctx"
+                },
+            },
+            
+            "metadata": {
+                "reqId":1514280215504647,
+                "from":"L5AD5g65TDQr1PPHHRoiGf",
+                "endorser": "D6HG5g65TDQr1PPHHRoiGf",
+                "digest":"6cee82226c6e276c983f46d03e3b3d10436d90b67bf33dc67ce9901b44dbc97c",
+                "payloadDigest": "21f0f5c158ed6ad49ff855baf09a2ef9b4ed1a8015ac24bccc2e0106cd905685"
+            },
+        },
+        "txnMetadata": {
+            "txnTime":1513945121,
+            "seqNo": 10,  
+            "txnId":"L5AD5g65TDQr1PPHHRoiGf1|Degree|1.0",
+        },
+        "reqSignature": {
+            "type": "ED25519",
+            "values": [{
+                "from": "L5AD5g65TDQr1PPHHRoiGf",
+                "value": "5ZTp9g4SP6t73rH2s8zgmtqdXyTuSMWwkLvfV1FD6ddHCpwTY5SAsp8YmLWnTgDnPXfJue3vJBWjy89bSHvyMSdS"
+            }]
+        }
+ 		
+        'rootHash': '5vasvo2NUAD7Gq8RVxJZg1s9F7cBpuem1VgHKaFP8oBm',
+        'auditPath': ['Cdsoz17SVqPodKpe6xmY2ZgJ9UcywFDZTRgWSAYM96iA', '66BCs5tG7qnfK6egnDsvcx2VSNH6z1Mfo9WmhLSExS6b'],
+		
     }
 }
 ```
@@ -2645,6 +2968,8 @@ Gets a transaction author agreement.
 - Gets a transaction author agreement by its version if `version` is set.
 - Gets the latest (current) transaction author agreement at the given time (from ledger point of view) if `timestamp` is set.
 
+The result contains Agreement's version, text, digest, ratification timestamp and retirement timestamp if it's set.
+
 All input parameters are optional and mutually exclusive. 
 
 - `digest` (sha256 digest hex string):
@@ -2691,6 +3016,9 @@ All input parameters are optional and mutually exclusive.
         'data': {
             "version": "1.0",
             "text": "Please read carefully before writing anything to the ledger",
+            "digest": "ca11c39b44ce4ec8666a8f63efd5bacf98a8e26c4f8890c87f629f126a3b74f3"
+            "ratification_ts": 1514304094738044,
+            "retirement_ts": 1515415195838044
         },
 
         'state_proof': {
@@ -2794,6 +3122,96 @@ All input parameters are optional and mutually exclusive.
 }
 ```
 
+### GET_CONTEXT
+
+Gets Context.
+
+- `dest` (base58-encoded string):
+
+    Context DID as base58-encoded string for 16 or 32 byte DID value.
+    It differs from `identifier` metadata field, where `identifier` is the DID of the submitter.
+    
+    *Example*: `identifier` is a DID of the read request sender, and `dest` is the DID of the Context.
+
+- `meta` (dict):
+
+    - `name` (string):  Context's name string
+    - `version` (string): Context's version string
+    
+
+ 
+*Request Example*:
+```
+{
+    'operation': {
+        'type': '300'
+        'dest': '2VkbBskPNNyWrLrZq7DBhk',
+        'meta': {
+            'name': 'SimpleContext',
+            'version': '1.0',
+            'type': 'ctx'
+        },
+    },
+    
+    'identifier': 'L5AD5g65TDQr1PPHHRoiGf',
+    'reqId': 1514308188474704,
+    'protocolVersion': 2
+}
+```
+
+*Reply Example*:
+```
+{
+    'op': 'REPLY', 
+    'result': {
+        'type': '300',
+        'identifier': 'L5AD5g65TDQr1PPHHRoiGf',
+        'reqId': 1514308188474704,
+        
+        'seqNo': 10,
+        'txnTime': 1514214795,
+
+        'state_proof': {
+            'root_hash': '81bGgr7FDSsf4ymdqaWzfnN86TETmkUKH4dj4AqnokrH',
+            'proof_nodes': '+QHl+FGAgICg0he/hjc9t/tPFzmCrb2T+nHnN0cRwqPKqZEc3pw2iCaAoAsA80p3oFwfl4dDaKkNI8z8weRsSaS9Y8n3HoardRzxgICAgICAgICAgID4naAgwxDOAEoIq+wUHr5h9jjSAIPDjS7SEG1NvWJbToxVQbh6+Hi4dnsiaWRlbnRpZmllciI6Ikw1QUQ1ZzY1VERRcjFQUEhIUm9pR2YiLCJyb2xlIjpudWxsLCJzZXFObyI6MTAsInR4blRpbWUiOjE1MTQyMTQ3OTUsInZlcmtleSI6In42dWV3Um03MmRXN1pUWFdObUFkUjFtIn348YCAgKDKj6ZIi+Ob9HXBy/CULIerYmmnnK2A6hN1u4ofU2eihKBna5MOCHiaObMfghjsZ8KBSbC6EpTFruD02fuGKlF1q4CAgICgBk8Cpc14mIr78WguSeT7+/rLT8qykKxzI4IO5ZMQwSmAoLsEwI+BkQFBiPsN8F610IjAg3+MVMbBjzugJKDo4NhYoFJ0ln1wq3FTWO0iw1zoUcO3FPjSh5ytvf1jvSxxcmJxoF0Hy14HfsVll8qa9aQ8T740lPFLR431oSefGorqgM5ioK1TJOr6JuvtBNByVMRv+rjhklCp6nkleiyLIq8vZYRcgIA=', 
+            'multi_signature': {
+                'value': {
+                    'timestamp': 1514308168,
+                    'ledger_id': 1, 
+                    'txn_root_hash': '4Y2DpBPSsgwd5CVE8Z2zZZKS4M6n9AbisT3jYvCYyC2y',
+                    'pool_state_root_hash': '9fzzkqU25JbgxycNYwUqKmM3LT8KsvUFkSSowD4pHpoK',
+                    'state_root_hash': '81bGgr7FDSsf4ymdqaWzfnN86TETmkUKH4dj4AqnokrH'
+                },
+                'signature': 'REbtR8NvQy3dDRZLoTtzjHNx9ar65ttzk4jMqikwQiL1sPcHK4JAqrqVmhRLtw6Ed3iKuP4v8tgjA2BEvoyLTX6vB6vN4CqtFLqJaPJqMNZvr9tA5Lm6ZHBeEsH1QQLBYnWSAtXt658PotLUEp38sNxRh21t1zavbYcyV8AmxuVTg3',
+                'participants': ['Delta', 'Gamma', 'Alpha']
+            }
+        },
+        
+        "data":{
+            "@context": [
+                {
+                    "@version": 1.1
+                },
+                "https://www.w3.org/ns/odrl.jsonld",
+                {
+                    "ex": "https://example.org/examples#",
+                    "schema": "http://schema.org/",
+                    "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+                }
+            ]
+        },
+
+        "meta": {
+            "name":"SimpleContext",
+            "version":"1.0",
+            "type": "ctx"
+        },
+        
+        'dest': '2VkbBskPNNyWrLrZq7DBhk'
+    }
+}
+```
+
 ### GET_TXN
 
 A generic request to get a transaction from Ledger by its sequence number.
@@ -2824,32 +3242,60 @@ A generic request to get a transaction from Ledger by its sequence number.
 *Reply Example (returns requested NYM txn with seqNo=9)*:
 ```
 {
-    'op': 'REPLY', 
-    'result': {
-        'type': '3',
-        'identifier': 'MSjKTWkPLtYoPEaTF1TUDb',
-        'reqId': 1514311352551755,
+    "op": "REPLY", 
+    "result": {
+        "type": "3",
+        "identifier": "MSjKTWkPLtYoPEaTF1TUDb",
+        "reqId": 1514311352551755,
        
-        'seqNo': 9,
+        "seqNo": 9,
 
-        'data': {
-            'type': '1',
-            'identifier': 'MSjKTWkPLtYoPEaTF1TUDb',
-            'reqId': 1514311345476031,
-            'signature': '4qDmMAGqjzr4nh7S3rzLX3V9iQYkHurrYvbibHSvQaKw3u3BouTdLwv6ZzzavAjS635kAqpj5kKG1ehixTUkzFjK',
-            'signatures': None,
-            
-            'seqNo': 9,
-            `txnTime': 1514311348,
-            
-            'rootHash': '5ecipNPSztrk6X77fYPdepzFRUvLdqBuSqv4M9Mcv2Vn',
-            'auditPath': ['Cdsoz17SVqPodKpe6xmY2ZgJ9UcywFDZTRgWSAYM96iA', '3phchUcMsnKFk2eZmcySAWm2T5rnzZdEypW7A5SKi1Qt'],
-            
-            'alias': 'name',
-            'dest': 'WTJ1xmQViyFb67WAuvPnJP',
-            'role': '2',
-            'verkey': '~HjhFpNnFJKyceyELpCz3b5'
+        "data": {
+            "ver": 1,
+            "txn": {
+                "type":"1",
+                "protocolVersion":2,
+        
+                "data": {
+                    "ver": 1,
+                    "dest":"GEzcdDLhCpGCYRHW82kjHd",
+                    "verkey":"~HmUWn928bnFT6Ephf65YXv",
+                    "role":101,
+                },
+        
+                "metadata": {
+                    "reqId":1513945121191691,
+                    "from":"L5AD5g65TDQr1PPHHRoiGf",
+                    "digest": "4ba05d9b2c27e52aa8778708fb4b3e5d7001eecd02784d8e311d27b9090d9453",
+                    "payloadDigest": "21f0f5c158ed6ad49ff855baf09a2ef9b4ed1a8015ac24bccc2e0106cd905685",
+                    "taaAcceptance": {
+                        "taaDigest": "6sh15d9b2c27e52aa8778708fb4b3e5d7001eecd02784d8e311d27b9090d9453",
+                        "mechanism": "EULA",
+                        "time": 1513942017
+                     }
+                },
+            },
+            "txnMetadata": {
+                "txnTime":1513945121,
+                "seqNo": 10,
+                "txnId": "N22KY2Dyvmuu2PyyqSFKue|01"
+            },
+            "reqSignature": {
+                "type": "ED25519",
+                "values": [{
+                    "from": "L5AD5g65TDQr1PPHHRoiGf",
+                    "value": "4X3skpoEK2DRgZxQ9PwuEvCJpL8JHdQ8X4HDDFyztgqE15DM2ZnkvrAh9bQY16egVinZTzwHqznmnkaFM4jjyDgd"
+                }]
+            }
+        
+            "rootHash": "5ecipNPSztrk6X77fYPdepzFRUvLdqBuSqv4M9Mcv2Vn",
+            "auditPath": ["Cdsoz17SVqPodKpe6xmY2ZgJ9UcywFDZTRgWSAYM96iA", "3phchUcMsnKFk2eZmcySAWm2T5rnzZdEypW7A5SKi1Qt"],
         }
+        
+        "type": "3",
+        "reqId": 1514311281279625,
+        "identifier": "MSjKTWkPLtYoPEaTF1TUDb",
+        "seqNo": 9,
     }
 }
 ```

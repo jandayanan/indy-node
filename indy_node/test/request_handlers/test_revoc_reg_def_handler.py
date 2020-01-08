@@ -1,17 +1,13 @@
 import pytest
 
-from common.serializers.serialization import domain_state_serializer
-from indy_common.constants import REVOC_REG_DEF, CRED_DEF_ID, REVOC_TYPE, \
+from indy_common.constants import CRED_DEF_ID, REVOC_TYPE, \
     TAG
 from indy_node.server.request_handlers.domain_req_handlers.revoc_reg_def_handler import RevocRegDefHandler
 from indy_node.test.request_handlers.helper import add_to_idr
 from plenum.common.constants import TRUSTEE
 from plenum.common.exceptions import InvalidClientRequest, UnauthorizedClientRequest
-from plenum.common.request import Request
 from plenum.common.txn_util import reqToTxn, append_txn_metadata, get_payload_data
-from plenum.common.util import randomString
 from plenum.server.request_handlers.utils import encode_state_value
-from indy_common.test.auth.conftest import write_auth_req_validator, constraint_serializer, config_state
 
 
 def test_revoc_reg_def_dynamic_validation_fails_wrong_id(revoc_reg_def_handler,
@@ -42,7 +38,7 @@ def test_revoc_reg_def_dynamic_validation_fails_no_cred_def(revoc_reg_def_handle
     revoc_reg_def_handler.state.set(revoc_def_id, "{}")
     with pytest.raises(InvalidClientRequest,
                        match="There is no any CRED_DEF by path"):
-        revoc_reg_def_handler.dynamic_validation(revoc_reg_def_request)
+        revoc_reg_def_handler.dynamic_validation(revoc_reg_def_request, 0)
 
 
 def test_revoc_reg_def_dynamic_validation_passes(revoc_reg_def_handler,
@@ -53,7 +49,7 @@ def test_revoc_reg_def_dynamic_validation_passes(revoc_reg_def_handler,
     cred_def_id = revoc_reg_def_request.operation.get(CRED_DEF_ID)
     revoc_reg_def_handler.state.set(cred_def_id.encode(),
                                     encode_state_value("value", "seqNo", "txnTime"))
-    revoc_reg_def_handler.dynamic_validation(revoc_reg_def_request)
+    revoc_reg_def_handler.dynamic_validation(revoc_reg_def_request, 0)
 
 
 def test_revoc_reg_def_dynamic_validation_without_permission(revoc_reg_def_handler,
@@ -66,7 +62,7 @@ def test_revoc_reg_def_dynamic_validation_without_permission(revoc_reg_def_handl
                                     encode_state_value("value", "seqNo", "txnTime"))
     with pytest.raises(UnauthorizedClientRequest,
                        match="Not enough TRUSTEE signatures"):
-        revoc_reg_def_handler.dynamic_validation(revoc_reg_def_request)
+        revoc_reg_def_handler.dynamic_validation(revoc_reg_def_request, 0)
 
 
 def test_update_state(revoc_reg_def_handler, revoc_reg_def_request):

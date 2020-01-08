@@ -11,7 +11,6 @@ from plenum.test.testing_utils import FakeSomething
 from indy_common.version import src_version_cls
 from indy_node.server.upgrader import Upgrader
 from indy_node.utils.node_control_utils import NodeControlUtil, DebianVersion
-from indy_common.test.auth.conftest import write_auth_req_validator, constraint_serializer, config_state
 
 
 @pytest.fixture(scope='function')
@@ -74,7 +73,7 @@ def test_pool_upgrade_dynamic_validation_fails_pckg(pool_upgrade_handler,
                                                     tconf):
     pool_upgrade_request.operation[PACKAGE] = ''
     with pytest.raises(InvalidClientRequest) as e:
-        pool_upgrade_handler.dynamic_validation(pool_upgrade_request)
+        pool_upgrade_handler.dynamic_validation(pool_upgrade_request, 0)
     e.match('Upgrade package name is empty')
 
 
@@ -86,7 +85,7 @@ def test_pool_upgrade_dynamic_validation_fails_not_installed(
     monkeypatch.setattr(NodeControlUtil, 'curr_pkg_info',
                         lambda *x: (None, None))
     with pytest.raises(InvalidClientRequest) as e:
-        pool_upgrade_handler.dynamic_validation(pool_upgrade_request)
+        pool_upgrade_handler.dynamic_validation(pool_upgrade_request, 0)
     e.match('is not installed and cannot be upgraded')
 
 
@@ -98,7 +97,7 @@ def test_pool_upgrade_dynamic_validation_fails_belong(
     monkeypatch.setattr(NodeControlUtil, 'curr_pkg_info',
                         lambda *x: ('1.1.1', ['some_pkg']))
     with pytest.raises(InvalidClientRequest) as e:
-        pool_upgrade_handler.dynamic_validation(pool_upgrade_request)
+        pool_upgrade_handler.dynamic_validation(pool_upgrade_request, 0)
     e.match('doesn\'t belong to pool')
 
 
@@ -115,7 +114,7 @@ def test_pool_upgrade_dynamic_validation_fails_upgradable(
     pool_upgrade_request.operation[VERSION] = pkg_version.upstream.full
     pool_upgrade_request.operation[REINSTALL] = False
     with pytest.raises(InvalidClientRequest) as e:
-        pool_upgrade_handler.dynamic_validation(pool_upgrade_request)
+        pool_upgrade_handler.dynamic_validation(pool_upgrade_request, 0)
     e.match('Version {} is not upgradable'.format(pkg_version.upstream.full))
 
 
@@ -140,7 +139,7 @@ def test_pool_upgrade_dynamic_validation_fails_scheduled(
             {TXN_PAYLOAD: {TXN_PAYLOAD_DATA: {ACTION: START}}}
 
     with pytest.raises(InvalidClientRequest) as e:
-        pool_upgrade_handler.dynamic_validation(pool_upgrade_request)
+        pool_upgrade_handler.dynamic_validation(pool_upgrade_request, 0)
     e.match('is already scheduled')
 
 
@@ -164,4 +163,4 @@ def test_pool_upgrade_dynamic_validation_passes(
         lambda predicate, reverse: \
             {TXN_PAYLOAD: {TXN_PAYLOAD_DATA: {}}}
     pool_upgrade_handler.write_req_validator.validate = lambda a, b: 0
-    pool_upgrade_handler.dynamic_validation(pool_upgrade_request)
+    pool_upgrade_handler.dynamic_validation(pool_upgrade_request, 0)

@@ -6,7 +6,6 @@ from indy_node.persistence.attribute_store import AttributeStore
 
 from indy_node.server.request_handlers.domain_req_handlers.attribute_handler import AttributeHandler
 from indy_node.test.request_handlers.helper import add_to_idr
-from indy_common.test.auth.conftest import write_auth_req_validator, constraint_serializer, config_state
 from plenum.common.constants import ENC, ATTRIB_LABEL
 from plenum.common.exceptions import InvalidClientRequest, UnauthorizedClientRequest
 from plenum.common.request import Request
@@ -21,7 +20,6 @@ from storage.kv_in_memory import KeyValueStorageInMemory
 
 @pytest.fixture(scope="module")
 def attrib_handler(db_manager, write_auth_req_validator):
-    db_manager.register_new_store(ATTRIB_LABEL, AttributeStore(KeyValueStorageInMemory()))
     return AttributeHandler(db_manager, write_auth_req_validator)
 
 
@@ -47,19 +45,19 @@ def test_attrib_static_validation_fails(attrib_request, attrib_handler: Attribut
 
 def test_attrib_dynamic_validation_fails(attrib_request, attrib_handler: AttributeHandler):
     with pytest.raises(InvalidClientRequest):
-        attrib_handler.dynamic_validation(attrib_request)
+        attrib_handler.dynamic_validation(attrib_request, 0)
 
 
 def test_attrib_dynamic_validation_fails_not_owner(attrib_request, attrib_handler: AttributeHandler):
     add_to_idr(attrib_handler.database_manager.idr_cache, attrib_request.operation['dest'], None)
     with pytest.raises(UnauthorizedClientRequest):
-        attrib_handler.dynamic_validation(attrib_request)
+        attrib_handler.dynamic_validation(attrib_request, 0)
 
 
 def test_attrib_dynamic_validation_passes(attrib_request, attrib_handler: AttributeHandler):
     add_to_idr(attrib_handler.database_manager.idr_cache, attrib_request.operation['dest'], None)
     attrib_request._identifier = attrib_request.operation['dest']
-    attrib_handler.dynamic_validation(attrib_request)
+    attrib_handler.dynamic_validation(attrib_request, 0)
 
 
 def test_update_state(attrib_handler, attrib_request):

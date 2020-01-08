@@ -1,46 +1,22 @@
 import pytest
-from indy_common.auth import Authoriser
 from indy_common.authorize.auth_actions import EDIT_PREFIX, ADD_PREFIX
-from indy_common.authorize.auth_constraints import AuthConstraintOr
-from indy_common.authorize.auth_map import auth_map
 
-from indy_common.constants import NYM, AUTH_RULE, OLD_VALUE, AUTH_TYPE, ROLE, ENDORSER, CONSTRAINT, AUTH_ACTION
+from indy_common.constants import OLD_VALUE, AUTH_TYPE, ROLE, ENDORSER, AUTH_ACTION
 from indy_node.server.request_handlers.config_req_handlers.auth_rule.abstract_auth_rule_handler import \
     AbstractAuthRuleHandler
 
 from indy_node.server.request_handlers.config_req_handlers.auth_rule.auth_rule_handler import AuthRuleHandler
 from indy_node.server.request_handlers.config_req_handlers.auth_rule.static_auth_rule_helper import StaticAuthRuleHelper
 from indy_node.test.auth_rule.helper import generate_auth_rule_operation
-from indy_common.test.auth.conftest import write_auth_req_validator
-from indy_node.test.request_handlers.helper import add_to_idr, get_exception
+from indy_node.test.request_handlers.helper import add_to_idr
 from plenum.common.constants import STEWARD, TRUSTEE
 from plenum.common.exceptions import InvalidClientRequest, UnauthorizedClientRequest
-from plenum.common.request import Request
-from plenum.common.txn_util import reqToTxn, append_txn_metadata, get_payload_data
-from plenum.common.util import randomString
-from plenum.test.testing_utils import FakeSomething
-from indy_common.test.auth.conftest import write_auth_req_validator, constraint_serializer, config_state
+from plenum.common.txn_util import reqToTxn, get_payload_data
 
 
 @pytest.fixture(scope="module")
 def auth_rule_handler(db_manager, write_auth_req_validator):
     return AuthRuleHandler(db_manager, write_auth_req_validator)
-
-
-@pytest.fixture(scope="function")
-def auth_rule_request(creator):
-    return Request(identifier=creator,
-                   reqId=5,
-                   signature="sig",
-                   operation=generate_auth_rule_operation())
-
-
-@pytest.fixture(scope="module")
-def creator(db_manager):
-    identifier = randomString()
-    idr = db_manager.idr_cache
-    add_to_idr(idr, identifier, None)
-    return identifier
 
 
 def test_auth_rule_static_validation(auth_rule_request, auth_rule_handler: AuthRuleHandler):
@@ -77,13 +53,13 @@ def test_auth_rule_dynamic_validation_without_permission(auth_rule_request,
                                                          auth_rule_handler: AuthRuleHandler, creator):
     add_to_idr(auth_rule_handler.database_manager.idr_cache, creator, STEWARD)
     with pytest.raises(UnauthorizedClientRequest):
-        auth_rule_handler.dynamic_validation(auth_rule_request)
+        auth_rule_handler.dynamic_validation(auth_rule_request, 0)
 
 
 def test_auth_rule_dynamic_validation(auth_rule_request,
                                       auth_rule_handler: AuthRuleHandler, creator):
     add_to_idr(auth_rule_handler.database_manager.idr_cache, creator, TRUSTEE)
-    auth_rule_handler.dynamic_validation(auth_rule_request)
+    auth_rule_handler.dynamic_validation(auth_rule_request, 0)
 
 
 def test_update_state(auth_rule_request, auth_rule_handler: AuthRuleHandler):

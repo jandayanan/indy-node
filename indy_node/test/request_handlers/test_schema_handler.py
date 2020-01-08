@@ -1,17 +1,14 @@
 import pytest
 
-from indy_common.authorize.auth_actions import AuthActionEdit
 from indy_common.authorize.auth_constraints import AuthConstraintForbidden
-from indy_common.constants import SCHEMA, SCHEMA_ATTR_NAMES
+from indy_common.constants import SCHEMA_ATTR_NAMES
 from indy_common.req_utils import get_write_schema_name, get_write_schema_version, get_txn_schema_attr_names
 from indy_node.server.request_handlers.domain_req_handlers.schema_handler import SchemaHandler
-from indy_node.test.request_handlers.helper import add_to_idr, get_exception
+from indy_node.test.request_handlers.helper import add_to_idr
 from plenum.common.constants import TRUSTEE
-from plenum.common.exceptions import InvalidClientRequest, UnknownIdentifier, UnauthorizedClientRequest
+from plenum.common.exceptions import UnauthorizedClientRequest
 from plenum.common.txn_util import get_request_data, reqToTxn, append_txn_metadata
 from plenum.server.request_handlers.utils import encode_state_value
-from plenum.test.testing_utils import FakeSomething
-from indy_common.test.auth.conftest import write_auth_req_validator, constraint_serializer, config_state
 
 
 def make_schema_exist(schema_request, schema_handler):
@@ -25,18 +22,18 @@ def make_schema_exist(schema_request, schema_handler):
 def test_schema_dynamic_validation_failed_existing_schema(schema_request, schema_handler):
     make_schema_exist(schema_request, schema_handler)
     with pytest.raises(UnauthorizedClientRequest, match=str(AuthConstraintForbidden())):
-        schema_handler.dynamic_validation(schema_request)
+        schema_handler.dynamic_validation(schema_request, 0)
 
 
 def test_schema_dynamic_validation_failed_not_authorised(schema_request, schema_handler):
     add_to_idr(schema_handler.database_manager.idr_cache, schema_request.identifier, None)
     with pytest.raises(UnauthorizedClientRequest):
-        schema_handler.dynamic_validation(schema_request)
+        schema_handler.dynamic_validation(schema_request, 0)
 
 
 def test_schema_dynamic_validation_passes(schema_request, schema_handler):
     add_to_idr(schema_handler.database_manager.idr_cache, schema_request.identifier, TRUSTEE)
-    schema_handler.dynamic_validation(schema_request)
+    schema_handler.dynamic_validation(schema_request, 0)
 
 
 def test_update_state(schema_request, schema_handler):

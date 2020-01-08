@@ -5,13 +5,12 @@ from typing import Iterable, List
 from common.exceptions import LogicError
 from indy_common.authorize.auth_constraints import AbstractConstraintSerializer
 from indy_node.server.node_bootstrap import NodeBootstrap
-from indy_node.server.pool_req_handler import PoolRequestHandler
+from indy_node.server.txn_version_controller import TxnVersionController
 
-from indy_node.server.action_req_handler import ActionReqHandler
 from indy_node.server.validator_info_tool import ValidatorNodeInfoTool
 
 from plenum.common.constants import VERSION, \
-    ENC, RAW, DOMAIN_LEDGER_ID, CURRENT_PROTOCOL_VERSION, FORCE, POOL_LEDGER_ID, TS_LABEL, ATTRIB_LABEL, IDR_CACHE_LABEL
+    ENC, RAW, CURRENT_PROTOCOL_VERSION, FORCE, ATTRIB_LABEL, IDR_CACHE_LABEL
 from plenum.common.txn_util import get_type, get_payload_data, TxnUtilConfig
 from plenum.common.types import f, \
     OPERATION
@@ -20,13 +19,11 @@ from plenum.server.node import Node as PlenumNode
 from state.pruning_state import PruningState
 from indy_common.config_util import getConfig
 from indy_common.constants import TXN_TYPE, ATTRIB, DATA, ACTION, \
-    NODE_UPGRADE, COMPLETE, FAIL, CONFIG_LEDGER_ID, POOL_UPGRADE, POOL_CONFIG, \
+    NODE_UPGRADE, COMPLETE, FAIL, POOL_UPGRADE, POOL_CONFIG, \
     IN_PROGRESS, AUTH_RULE, AUTH_RULES
 from indy_common.types import Request, SafeRequest
 from indy_common.config_helper import NodeConfigHelper
 from indy_node.server.client_authn import LedgerBasedAuthNr
-from indy_node.server.config_req_handler import ConfigReqHandler
-from indy_node.server.domain_req_handler import DomainReqHandler
 from indy_node.server.node_authn import NodeAuthNr
 from stp_core.common.log import getlogger
 
@@ -84,7 +81,6 @@ class Node(PlenumNode):
                          genesis_dir=genesis_dir,
                          plugins_dir=plugins_dir,
                          node_info_dir=node_info_dir,
-                         primaryDecider=primaryDecider,
                          pluginPaths=pluginPaths,
                          storage=storage,
                          config=config,
@@ -95,6 +91,7 @@ class Node(PlenumNode):
 
         self.nodeMsgRouter.routes[Request] = self.processNodeRequest
         self.nodeAuthNr = self.defaultNodeAuthNr()
+        self.db_manager.set_txn_version_controller(TxnVersionController())
 
     @property
     def attributeStore(self):
@@ -112,46 +109,8 @@ class Node(PlenumNode):
         when = now + timedelta(seconds=timeout)
         self.restarter.requestRestart(when)
 
-    def init_pool_req_handler(self):
-        return PoolRequestHandler(self.poolLedger,
-                                  self.states[POOL_LEDGER_ID],
-                                  self.states,
-                                  self.idrCache,
-                                  self.write_req_validator)
-
-    def init_domain_req_handler(self):
-        return DomainReqHandler(self.domainLedger,
-                                self.states[DOMAIN_LEDGER_ID],
-                                self.config,
-                                self.reqProcessors,
-                                self.idrCache,
-                                self.attributeStore,
-                                self.bls_bft.bls_store,
-                                self.write_req_validator,
-                                self.db_manager.get_store(TS_LABEL))
-
-    def init_config_req_handler(self):
-        return ConfigReqHandler(self.configLedger,
-                                self.states[CONFIG_LEDGER_ID],
-                                self.states[DOMAIN_LEDGER_ID],
-                                self.idrCache,
-                                self.upgrader,
-                                self.poolManager,
-                                self.poolCfg,
-                                self.write_req_validator,
-                                self.bls_bft.bls_store,
-                                self.db_manager.get_store(TS_LABEL))
-
     def getIdrCache(self):
         return self.idrCache
-
-    def init_action_req_handler(self):
-        return ActionReqHandler(self.idrCache,
-                                self.restarter,
-                                self.poolManager,
-                                self.poolCfg,
-                                self._info_tool,
-                                self.write_req_validator)
 
     def post_txn_from_catchup_added_to_domain_ledger(self, txn):
         pass

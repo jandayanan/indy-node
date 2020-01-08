@@ -1,19 +1,16 @@
 import pytest
 
 from indy_common.constants import NYM, CLAIM_DEF, REF, CLAIM_DEF_PUBLIC_KEYS, CLAIM_DEF_SCHEMA_REF
-from indy_common.req_utils import get_txn_claim_def_public_keys
 from indy_node.server.request_handlers.domain_req_handlers.claim_def_handler import ClaimDefHandler
-from indy_node.server.request_handlers.domain_req_handlers.schema_handler import SchemaHandler
-from indy_node.test.request_handlers.helper import add_to_idr, get_exception
+from indy_node.test.request_handlers.helper import add_to_idr
 
 from plenum.common.constants import STEWARD
-from plenum.common.exceptions import InvalidClientRequest, UnauthorizedClientRequest, UnknownIdentifier
+from plenum.common.exceptions import InvalidClientRequest, UnauthorizedClientRequest
 from plenum.common.request import Request
-from plenum.common.txn_util import reqToTxn, get_seq_no, append_txn_metadata, get_payload_data
+from plenum.common.txn_util import reqToTxn, get_seq_no, append_txn_metadata
 
 from plenum.common.util import randomString
 from plenum.test.testing_utils import FakeSomething
-from indy_common.test.auth.conftest import write_auth_req_validator, constraint_serializer, config_state
 
 
 @pytest.fixture(scope="module")
@@ -27,6 +24,17 @@ def creator(db_manager):
     idr = db_manager.idr_cache
     add_to_idr(idr, identifier, STEWARD)
     return identifier
+
+
+@pytest.fixture(scope="module")
+def domain_ledger():
+    ledger = FakeSomething()
+    ledger.txn_list = {}
+    ledger.getBySeqNo = lambda seq_no: ledger.txn_list[seq_no]
+    ledger.appendTxns = lambda txns: ledger.txn_list.update({get_seq_no(txn): txn
+                                                             for txn in txns})
+    ledger.get_by_seq_no_uncommitted = lambda seq_no: ledger.txn_list[seq_no]
+    return ledger
 
 
 @pytest.fixture(scope="function")
@@ -48,7 +56,7 @@ def claim_def_request(creator, schema):
 def test_claim_def_dynamic_validation_without_schema(claim_def_request,
                                                      claim_def_handler: ClaimDefHandler):
     with pytest.raises(InvalidClientRequest) as e:
-        claim_def_handler.dynamic_validation(claim_def_request)
+        claim_def_handler.dynamic_validation(claim_def_request, 0)
     assert "Mentioned seqNo ({}) doesn't exist.".format(claim_def_request.operation[REF]) \
            in e._excinfo[1].args[0]
 
@@ -56,7 +64,7 @@ def test_claim_def_dynamic_validation_without_schema(claim_def_request,
 def test_claim_def_dynamic_validation_for_new_claim_def(claim_def_request, schema,
                                                         claim_def_handler: ClaimDefHandler):
     claim_def_handler.ledger.appendTxns([schema])
-    claim_def_handler.dynamic_validation(claim_def_request)
+    claim_def_handler.dynamic_validation(claim_def_request, 0)
 
 
 def test_claim_def_dynamic_validation_without_permission(claim_def_request, schema,
@@ -72,7 +80,7 @@ def test_claim_def_dynamic_validation_without_permission(claim_def_request, sche
                       operation=claim_def_request.operation)
     with pytest.raises(UnauthorizedClientRequest,
                        match="Not enough .* signatures"):
-        claim_def_handler.dynamic_validation(request)
+        claim_def_handler.dynamic_validation(request, 0)
 
 
 def test_claim_def_dynamic_validation_for_unknown_identifier(claim_def_request, schema,
@@ -84,7 +92,7 @@ def test_claim_def_dynamic_validation_for_unknown_identifier(claim_def_request, 
                       operation=claim_def_request.operation)
     with pytest.raises(UnauthorizedClientRequest,
                        match='DID {} is not found in the Ledger'.format(test_identifier)):
-        claim_def_handler.dynamic_validation(request)
+        claim_def_handler.dynamic_validation(request, 0)
 
 
 def test_claim_def_dynamic_validation_without_ref_to_not_schema(claim_def_request, schema,
@@ -94,7 +102,7 @@ def test_claim_def_dynamic_validation_without_ref_to_not_schema(claim_def_reques
     claim_def_request.operation[REF] = get_seq_no(nym)
     claim_def_handler.ledger.appendTxns([nym])
     with pytest.raises(InvalidClientRequest) as e:
-        claim_def_handler.dynamic_validation(claim_def_request)
+        claim_def_handler.dynamic_validation(claim_def_request, 0)
     assert "Mentioned seqNo ({}) isn't seqNo of the schema.".format(claim_def_request.operation[REF]) \
            in e._excinfo[1].args[0]
 

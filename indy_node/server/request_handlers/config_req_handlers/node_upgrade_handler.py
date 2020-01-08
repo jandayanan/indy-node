@@ -1,3 +1,6 @@
+from typing import Optional
+
+from plenum.common.exceptions import InvalidClientRequest
 from indy_common.constants import NODE_UPGRADE, CONFIG_LEDGER_ID
 from indy_common.types import Request
 from plenum.server.database_manager import DatabaseManager
@@ -13,8 +16,9 @@ class NodeUpgradeHandler(WriteRequestHandler):
     def update_state(self, txn, prev_result, request, is_committed=False):
         pass
 
-    def dynamic_validation(self, request: Request):
+    def dynamic_validation(self, request: Request, req_pp_time: Optional[int]):
         pass
 
     def static_validation(self, request: Request):
-        pass
+        raise InvalidClientRequest(request.identifier, request.reqId,
+                                   "External NODE_UPGRADE requests are not allowed")

@@ -1,3 +1,5 @@
+from typing import Optional
+
 from indy_common.constants import NYM, ROLE
 from indy_common.types import Request
 from plenum.common.constants import TARGET_NYM, VERKEY, TXN_TIME, DOMAIN_LEDGER_ID
@@ -12,7 +14,6 @@ class IdrCacheNymHandler(WriteRequestHandler):
         super().__init__(database_manager, NYM, DOMAIN_LEDGER_ID)
 
     def apply_request(self, request: Request, batch_ts, prev_result):
-
         txn = self._req_to_txn(request)
         txn = append_txn_metadata(txn,
                                   seq_no=prev_result.get(f.SEQ_NO.nm),
@@ -35,7 +36,7 @@ class IdrCacheNymHandler(WriteRequestHandler):
     def static_validation(self, request):
         pass
 
-    def dynamic_validation(self, request):
+    def dynamic_validation(self, request, req_pp_time: Optional[int]):
         pass
 
     def gen_state_key(self, txn):

@@ -11,6 +11,7 @@
     * [CLAIM_DEF](#claim_def)
     * [REVOC_REG_DEF](#revoc_reg_def)
     * [REVOC_REG_ENTRY](#revoc_reg_entry)
+    * [SET_CONTEXT](#set_context)
 
 * [Pool Ledger](#pool-ledger)
     * [NODE](#node)
@@ -22,7 +23,8 @@
     * [AUTH_RULE](#auth_rule)
     * [AUTH_RULES](#auth_rules)
     * [TRANSACTION_AUTHOR_AGREEMENT](#transaction_author_agreement)
-    * [TRANSACTION_AUTHOR_AGREEMENT_AML](#transaction_author_agreement_AML)    
+    * [TRANSACTION_AUTHOR_AGREEMENT_AML](#transaction_author_agreement_AML)
+    * [TRANSACTION_AUTHOR_AGREEMENT_DISABLE](#transaction_author_agreement_disable)
     
 * [Actions](#actions)
     * [POOL_RESTART](#pool_restart)    
@@ -75,6 +77,7 @@ transaction specific data:
         "metadata": {
             "reqId": <...>,
             "from": <...>,
+            "endorser": <...>,
             "digest": <...>,
             "payloadDigest": <...>,
             "taaAcceptance": {
@@ -125,6 +128,7 @@ transaction specific data:
         - REVOC_REG_DEF = "114"
         - AUTH_RULE = "120"
         - AUTH_RULES = "122"
+        - SET_CONTEXT = "200"
 
     - `protocolVersion` (integer; optional):
 
@@ -141,12 +145,17 @@ transaction specific data:
         Metadata as came from the request.
 
         - `from` (base58-encoded string):
-             Identifier (DID) of the transaction submitter (client who sent the transaction) as base58-encoded string
-             for 16 or 32 byte DID value.
-             It may differ from `did` field for some of transaction (for example NYM), where `did` is a
-             target identifier (for example, a newly created DID identifier).
-
-             *Example*: `from` is a DID of a Endorser creating a new DID, and `did` is a newly created DID.
+         
+             Identifier (DID) of the transaction author as base58-encoded string
+             for 16 or 32 bit DID value.
+             It may differ from `endorser` field who submits the transaction on behalf of `identifier`.
+             If `endorser` is absent, then the author (`identifier`) plays the role of endorser and submits request by his own.
+             It also may differ from `dest` field for some of requests (for example NYM), where `dest` is a target identifier (for example, a newly created DID identifier).
+             
+             *Example*:
+             
+             - `identifier` is a DID of a transaction author who doesn't have write permissions; `endorser` is a DID of a user with Endorser role (that is with write permissions).
+             - new NYM creation: `identifier` is a DID of an Endorser creating a new DID, and `dest` is a newly created DID.
 
         - `reqId` (integer):
             Unique ID number of the request with transaction.
@@ -156,6 +165,11 @@ transaction specific data:
             
         - `payloadDigest` (SHA256 hex digest string):
             SHA256 hash hex digest of the payload fields in the initial requests, that is all fields excluding signatures and plugins-added ones
+ 
+        - `endorser` (base58-encoded string, optional):
+            Identifier (DID) of an Endorser submitting a transaction on behalf of the original author (`identifier`) as base58-encoded string for 16 or 32 bit DID value.
+            If `endorser` is absent, then the author (`identifier`) plays the role of endorser and submits request by his own.
+            If `endorser` is present then the transaction must be multi-signed by the both author (`identifier`) and Endorser (`endorser`). 
             
         - `taaAcceptance` (dict, optional):
             If transaction author agreement is set/enabled, then every transaction (write request) from Domain and plugins-added ledgers must include acceptance of the latest transaction author agreement.
@@ -164,7 +178,7 @@ transaction specific data:
             
             - `mechanism` (string): a mechanism used to accept the signature; must be present in the latest list of transaction author agreement acceptane mechanisms on the ledger  
             
-            - `time` (integer as POSIX timestamp): transaction author agreement acceptance time
+            - `time` (integer as POSIX timestamp): transaction author agreement acceptance time. The time needs to be rounded to date to prevent correlation of different transactions which is possible when acceptance time is too precise.
                 
     - `txnMetadata` (dict):
 
@@ -215,7 +229,8 @@ creation of new DIDs, setting and rotation of verification key, setting and chan
 - `dest` (base58-encoded string):
 
     Target DID as base58-encoded string for 16 or 32 byte DID value.
-    It differs from the `from` metadata field, where `from` is the DID of the submitter.
+    It may differ from the `from` metadata field, where `from` is the DID of the submitter.
+    If they are equal (in permissionless case), then transaction must be signed by the newly created `verkey`.
 
     *Example*: `from` is a DID of a Endorser creating a new DID, and `dest` is a newly created DID.
 
@@ -402,6 +417,7 @@ So, if the Schema needs to be evolved, a new Schema with a new version or new na
         "metadata": {
             "reqId":1513945121191691,
             "from":"L5AD5g65TDQr1PPHHRoiGf",
+            "endorser": "D6HG5g65TDQr1PPHHRoiGf",
             "digest": "4ba05d9b2c27e52aa8778708fb4b3e5d7001eecd02784d8e311d27b9090d9453",
             "payloadDigest": "21f0f5c158ed6ad49ff855baf09a2ef9b4ed1a8015ac24bccc2e0106cd905685",
             "taaAcceptance": {
@@ -476,6 +492,7 @@ Adds a claim definition (in particular, public key), that Issuer creates and pub
         "metadata": {
             "reqId":1513945121191691,
             "from":"L5AD5g65TDQr1PPHHRoiGf",
+            "endorser": "D6HG5g65TDQr1PPHHRoiGf",
             "digest": "4ba05d9b2c27e52aa8778708fb4b3e5d7001eecd02784d8e311d27b9090d9453",
             "payloadDigest": "21f0f5c158ed6ad49ff855baf09a2ef9b4ed1a8015ac24bccc2e0106cd905685",
             "taaAcceptance": {
@@ -547,6 +564,7 @@ It contains public keys, maximum number of credentials the registry may contain,
         "metadata": {
             "reqId":1513945121191691,
             "from":"L5AD5g65TDQr1PPHHRoiGf",
+            "endorser": "D6HG5g65TDQr1PPHHRoiGf",
             'digest': '4ba05d9b2c27e52aa8778708fb4b3e5d7001eecd02784d8e311d27b9090d9453',
             'payloadDigest': '21f0f5c158ed6ad49ff855baf09a2ef9b4ed1a8015ac24bccc2e0106cd905685',
             "taaAcceptance": {
@@ -610,6 +628,7 @@ The RevocReg entry containing the new accumulator value and issued/revoked indic
         "metadata": {
             "reqId":1513945121191691,
             "from":"L5AD5g65TDQr1PPHHRoiGf",
+            "endorser": "D6HG5g65TDQr1PPHHRoiGf",
             'digest': '4ba05d9b2c27e52aa8778708fb4b3e5d7001eecd02784d8e311d27b9090d9453',
             'payloadDigest': '21f0f5c158ed6ad49ff855baf09a2ef9b4ed1a8015ac24bccc2e0106cd905685',
             "taaAcceptance": {
@@ -634,6 +653,88 @@ The RevocReg entry containing the new accumulator value and issued/revoked indic
 }
 ```
 
+
+#### SET_CONTEXT
+Adds a Context
+
+It's not possible to update an existing Context.
+If the Context needs to be evolved, a new Context with a new version or new name needs to be created.
+
+- `data` (dict):
+
+     Dictionary with Context's data:
+     
+    - `@context`: This value must be either:
+        1) a URI (it should dereference to a Context object)
+        2) a Context object (a dict)
+        3) an array of Context objects and/or Context URIs
+
+- `meta` (dict)
+
+    Dictionary with Context's metadata
+    
+    - `name`: Context's name string
+    - `version`: Context's version string
+    - `type`: 'ctx'
+
+
+**Example**:
+```
+{
+    "ver": 1,
+    "txn": {
+        "type":200,
+        "protocolVersion":2,
+
+        "data": {
+            "ver":1,
+            "data":{
+                "@context": [
+                    {
+                        "@version": 1.1
+                    },
+                    "https://www.w3.org/ns/odrl.jsonld",
+                    {
+                        "ex": "https://example.org/examples#",
+                        "schema": "http://schema.org/",
+                        "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+                    }
+                ]
+            },
+            "meta": {
+                "name":"SimpleContext",
+                "version":"1.0",
+                "type": "ctx
+            },
+        },
+
+        "metadata": {
+            "reqId":1513945121191691,
+            "from":"L5AD5g65TDQr1PPHHRoiGf",
+            "endorser": "D6HG5g65TDQr1PPHHRoiGf",
+            "digest": "4ba05d9b2c27e52aa8778708fb4b3e5d7001eecd02784d8e311d27b9090d9453",
+            "payloadDigest": "21f0f5c158ed6ad49ff855baf09a2ef9b4ed1a8015ac24bccc2e0106cd905685",
+            "taaAcceptance": {
+                "taaDigest": "6sh15d9b2c27e52aa8778708fb4b3e5d7001eecd02784d8e311d27b9090d9453",
+                "mechanism": "EULA",
+                "time": 1513942017
+             }            
+        },
+    },
+    "txnMetadata": {
+        "txnTime":1513945121,
+        "seqNo": 10,
+        "txnId":"L5AD5g65TDQr1PPHHRoiGf1|Degree|1.0",
+    },
+    "reqSignature": {
+        "type": "ED25519",
+        "values": [{
+            "from": "L5AD5g65TDQr1PPHHRoiGf",
+            "value": "4X3skpoEK2DRgZxQ9PwuEvCJpL8JHdQ8X4HDDFyztgqE15DM2ZnkvrAh9bQY16egVinZTzwHqznmnkaFM4jjyDgd"
+        }]
+    }
+}
+```
 
 ## Pool Ledger
 
@@ -975,6 +1076,13 @@ The `constraint_id` fields is where one can define the desired auth constraint f
             Flag to check if the user must be the owner of a transaction (Example: A steward must be the owner of the node to make changes to it).
             The notion of the `owner` is different for every auth rule. Please reference to [auth_rules.md](auth_rules.md) for details.
             
+        - `off_ledger_signature` (boolean, optional, False by default):
+        
+            Whether signatures against keys not present on the ledger are accepted during verification of required number of valid signatures.
+            An example when it can be set to `True` is creation of a new DID in a permissionless mode, that is when `identifer` is not present on the ledger and a newly created `verkey` is used for signature verification.
+            Another example is signing by cryptonyms  (where identifier is equal to verkey), but this is not supported yet. 
+            If the value of this field is False (default), and the number of required signatures is greater than zero, then the transaction author's DID (`identifier`) must be present on the ledger (corresponding NYM txn must exist).            
+            
         - `metadata` (dict; optional):
         
             Dictionary for additional parameters of the constraint. Can be used by plugins to add additional restrictions.
@@ -1113,6 +1221,13 @@ Please note, that list elements of `GET_AUTH_RULE` output can be used as an inpu
             Flag to check if the user must be the owner of a transaction (Example: A steward must be the owner of the node to make changes to it).
             The notion of the `owner` is different for every auth rule. Please reference to [auth_rules.md](auth_rules.md) for details.
             
+        - `off_ledger_signature` (boolean, optional, False by default):
+        
+            Whether signatures against keys not present on the ledger are accepted during verification of required number of valid signatures.
+            An example when it can be set to `True` is creation of a new DID in a permissionless mode, that is when `identifer` is not present on the ledger and a newly created `verkey` is used for signature verification.
+            Another example is signing by cryptonyms  (where identifier is equal to verkey), but this is not supported yet. 
+            If the value of this field is False (default), and the number of required signatures is greater than zero, then the transaction author's DID (`identifier`) must be present on the ledger (corresponding NYM txn must exist).            
+            
         - `metadata` (dict; optional):
         
             Dictionary for additional parameters of the constraint. Can be used by plugins to add additional restrictions.
@@ -1180,13 +1295,36 @@ Please note, that list elements of `GET_AUTH_RULE` output can be used as an inpu
 #### TRANSACTION_AUTHOR_AGREEMENT
 
 Setting (enabling/disabling) a transaction author agreement for the pool.
+
 If transaction author agreement is set, then all write requests to Domain ledger (transactions) must include additional metadata pointing to the latest transaction author agreement's digest which is signed by the transaction author.
-
-If no transaction author agreement is set, or it's disabled, then no additional metadata is required.
-
-Transaction author agreement can be disabled by setting an agreement with an empty text.
+If no transaction author agreement is set, or there are no active transaction author agreements, then no additional metadata is required.
 
 Each transaction author agreement has a unique version.
+If TRANSACTION_AUTHOR_AGREEMENT transaction is sent for already existing version it is considered an update 
+(for example of retirement timestamp), in this case text and ratification timestamp should be either absent or equal to original values.
+
+For any given version of transaction author agreement text and ratification timestamp cannot be changed once set. Ratification timestamp cannot be in future.
+In order to update Transaction Author Agreement `TRANSACTION_AUTHOR_AGREEMENT` transaction should be sent, 
+containing new version and new text of agreement. This makes it possible to use new Transaction Author Agreement, but doesn't disable previous one automatically.
+
+Individual transaction author agreements can be disabled by setting retirement timestamp using same transaction.
+Retirement timestamp can be in future, in this case deactivation of agreement won't happen immediately, it will be automatically deactivated at required time instead.
+
+It is possible to change existing retirement timestamp of agreement by sending a `TRANSACTION_AUTHOR_AGREEMENT` transaction with a new retirement timestamp.
+This may potentially re-enable already retired Agreement.
+Re-enabling retired Agreement needs to be considered as an exceptional case used mostly for fixing disabling by mistake or with incorrect retirement timestamp specified.
+ 
+It is possible to delete retirement timestamp of agreement by sending a `TRANSACTION_AUTHOR_AGREEMENT` transaction without a retirement timestamp or retirement timestamp set to `None`.
+This will either cancel retirement (if it hasn't occurred yet), or disable retirement of already retired transaction (re-enable the Agreement).
+Re-enabling retired Agreement needs to be considered as an exceptional case used mostly for fixing disabling by mistake or with incorrect retirement timestamp specified.
+
+Latest transaction author agreement cannot be disabled using this transaction.
+ 
+It is possible to disable all currently active transaction author agreements (including latest) using separate transaction [TRANSACTION_AUTHOR_AGREEMENT_DISABLE](#transaction_author_agreement_disable).
+This will immediately set current timestamp as retirement one for all not yet retired Transaction Author Agreements.
+
+It's not possible to re-enable an Agreement right after disabling all agreements because there is no active latest Agreement at this point.
+A new Agreement needs to be sent instead.
 
 At least one [TRANSACTION_AUTHOR_AGREEMENT_AML](#transaction_author_agreement_aml) must be set on the ledger before submitting TRANSACTION_AUTHOR_AGREEMENT txn.
 
@@ -1194,23 +1332,38 @@ At least one [TRANSACTION_AUTHOR_AGREEMENT_AML](#transaction_author_agreement_am
 
     Unique version of the transaction author agreement
 
+- `text` (string; optional):
 
-- `text` (string):
+    Transaction author agreement's text. Must be specified when creating a new Agreement.
+    Should be either omitted or equal to existing value in case of updating an existing Agreement (setting `retirement_ts`) .
 
-    Transaction author agreement's text
+- `ratification_ts` (integer as POSIX timestamp; optional):
 
-**Example:**
+    Transaction Author Agreement ratification timestamp as POSIX timestamp. May have any precision up to seconds.
+    Must be specified when creating a new Agreement.
+    Should be either omitted or equal to existing value in case of updating an existing Agreement (setting `retirement_ts`).
+
+- `retirement_ts` (integer as POSIX timestamp; optional):
+
+    Transaction Author Agreement retirement timestamp as POSIX timestamp. May have any precision up to seconds.
+    Can be any timestamp either in future or in the past (the Agreement will be retired immediately in the latter case).
+    Must be omitted when creating a new (latest) Agreement.
+    Should be used for updating (deactivating) non-latest Agreement on the ledger.
+
+
+**New Agreement Example:**
 ```
 {
-    "ver":1,
+    "ver": 2,
     "txn": {
         "type":4,
         "protocolVersion":2,
 
         "data": {
-            "ver":1,
+            "ver": 2,
             "version": "1.0",
             "text": "Please read carefully before writing anything to the ledger",
+            "ratification_ts": 1514304094738044
         },
 
         "metadata": {
@@ -1221,7 +1374,43 @@ At least one [TRANSACTION_AUTHOR_AGREEMENT_AML](#transaction_author_agreement_am
         },
     },
     "txnMetadata": {
-        "txnTime":1513945121,
+        "txnTime":1577836799,
+        "seqNo": 10,
+    },
+    "reqSignature": {
+        "type": "ED25519",
+        "values": [{
+            "from": "L5AD5g65TDQr1PPHHRoiGf",
+            "value": "4X3skpoEK2DRgZxQ9PwuEvCJpL8JHdQ8X4HDDFyztgqE15DM2ZnkvrAh9bQY16egVinZTzwHqznmnkaFM4jjyDgd"
+        }]
+    }
+}
+```
+
+
+**Retire Agreement Example:**
+```
+{
+    "ver": 2,
+    "txn": {
+        "type":4,
+        "protocolVersion":2,
+
+        "data": {
+            "ver": 2,
+            "version": "1.0",
+            "retirement_ts": 1515415195838044
+        },
+
+        "metadata": {
+            "reqId":1513945121191691,
+            "from":"L5AD5g65TDQr1PPHHRoiGf",
+            "digest":"6cee82226c6e276c983f46d03e3b3d10436d90b67bf33dc67ce9901b44dbc97c",
+            "payloadDigest": "21f0f5c158ed6ad49ff855baf09a2ef9b4ed1a8015ac24bccc2e0106cd905685",
+        },
+    },
+    "txnMetadata": {
+        "txnTime":1577836799,
         "seqNo": 10,
     },
     "reqSignature": {
@@ -1257,7 +1446,6 @@ Each acceptance mechanisms list has a unique version.
     A context information about Acceptance mechanisms list (may be URL to external resource).   
     
     
-
 **Example:**
 ```
 {
@@ -1287,6 +1475,46 @@ Each acceptance mechanisms list has a unique version.
     },
     "txnMetadata": {
         "txnTime":1513945121,
+        "seqNo": 10,
+    },
+    "reqSignature": {
+        "type": "ED25519",
+        "values": [{
+            "from": "L5AD5g65TDQr1PPHHRoiGf",
+            "value": "4X3skpoEK2DRgZxQ9PwuEvCJpL8JHdQ8X4HDDFyztgqE15DM2ZnkvrAh9bQY16egVinZTzwHqznmnkaFM4jjyDgd"
+        }]
+    }
+}
+```
+
+#### TRANSACTION_AUTHOR_AGREEMENT_DISABLE
+
+Immediately retires all active Transaction Author Agreements at once by setting current timestamp as a retirement one.
+
+It's not possible to re-enable an Agreement right after disabling all agreements because there is no active latest Agreement at this point.
+A new Agreement needs to be sent instead.
+
+**Example:**
+```
+{
+    "ver": 1,
+    "txn": {
+        "type":8,
+        "protocolVersion":2,
+
+        "data": {
+            "ver": 1,
+        },
+
+        "metadata": {
+            "reqId":1513945121191691,
+            "from":"L5AD5g65TDQr1PPHHRoiGf",
+            "digest":"6cee82226c6e276c983f46d03e3b3d10436d90b67bf33dc67ce9901b44dbc97c",
+            "payloadDigest": "21f0f5c158ed6ad49ff855baf09a2ef9b4ed1a8015ac24bccc2e0106cd905685",
+        },
+    },
+    "txnMetadata": {
+        "txnTime":1577836799,
         "seqNo": 10,
     },
     "reqSignature": {
